@@ -1,0 +1,337 @@
+package top.maple_bamboo_team.mbtfly.client;
+
+import com.mojang.brigadier.Command;
+import com.mojang.brigadier.arguments.FloatArgumentType;
+import net.fabricmc.api.ClientModInitializer;
+import net.fabricmc.fabric.api.client.command.v2.ClientCommandRegistrationCallback;
+import net.minecraft.client.MinecraftClient;
+import net.minecraft.text.Text;
+import net.minecraft.util.math.Vec3d;
+import top.maple_bamboo_team.mbtfly.client.flight.FlightControl;
+
+import java.time.Duration;
+import java.time.Instant;
+
+import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.argument;
+import static net.fabricmc.fabric.api.client.command.v2.ClientCommandManager.literal;
+
+public class MBTFlyClient implements ClientModInitializer {
+
+    public static Vec3d destination = null;
+    public static Instant startTime = null;
+    public static String playerName = null;
+    public static Vec3d startPos = null;
+    public static float detectionRange = 1.6f;
+    public static boolean autoExitEnabled = false;
+    public static boolean autoExitTriggered = false;
+    public static boolean isPaused = false;
+    public static Duration pausedDuration = Duration.ZERO;
+    private static Instant pauseStartTime = null;
+    private static final Text PREFIX = Text.literal("[Maple Client] [MBTFly] ");
+
+    private void resetAllStates() {
+        FlightControl.enabled = false;
+        destination = null;
+        startTime = null;
+        startPos = null;
+        detectionRange = 1.6f;
+        autoExitEnabled = false;
+        autoExitTriggered = false;
+        isPaused = false;
+        pausedDuration = Duration.ZERO;
+        pauseStartTime = null;
+    }
+
+    @Override
+    public void onInitializeClient() {
+        resetAllStates();
+        ClientCommandRegistrationCallback.EVENT.register((dispatcher, registryAccess) -> dispatcher.register(literal("mbtfly")
+                .executes(context -> {
+                    MinecraftClient client = MinecraftClient.getInstance();
+                    if (client.player != null) {
+                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] 欢迎使用MBTFly v1"), false);
+                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] 帮助菜单:"), false);
+                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] - /mbtfly <x> <y> <z> [range] [quit] §7: 自动飞行到指定坐标"), false);
+                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] - /mbtfly <x> ~ <z> [range] [quit] §7: 自动飞行到指定XZ坐标, 保持当前Y坐标"), false);
+                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] - /mbtfly pause §7: 暂停自动飞行"), false);
+                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] - /mbtfly resume §7: 恢复自动飞行"), false);
+                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] - /mbtfly stop §7: 停止当前飞行"), false);
+                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §7[range] 为可选参数. 指定目的地检测范围, 默认为2格.进入此范围后, 飞行将停止"), false);
+                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §7[quit] 为可选参数. 到达目的地后, 则10秒后自动退出游戏"), false);
+                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §c本模组没有任何自动避障功能, 建议在末地或下界顶层使用"), false);
+                    }
+                    return Command.SINGLE_SUCCESS;
+                })
+                .then(literal("pause")
+                        .executes(context -> {
+                            MinecraftClient client = MinecraftClient.getInstance();
+                            if (client.player != null) {
+                                if (FlightControl.enabled) {
+                                    FlightControl.enabled = false;
+                                    isPaused = true;
+                                    pauseStartTime = Instant.now();
+                                    client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a自动飞行已暂停"), false);
+                                } else {
+                                    client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §c当前没有进行中的自动飞行"), false);
+                                }
+                            }
+                            return Command.SINGLE_SUCCESS;
+                        })
+                )
+                .then(literal("resume")
+                        .executes(context -> {
+                            MinecraftClient client = MinecraftClient.getInstance();
+                            if (client.player != null) {
+                                if (isPaused) {
+                                    FlightControl.enabled = true;
+                                    isPaused = false;
+                                    if (pauseStartTime != null) {
+                                        pausedDuration = pausedDuration.plus(Duration.between(pauseStartTime, Instant.now()));
+                                        pauseStartTime = null;
+                                    }
+                                    client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a自动飞行已恢复"), false);
+                                } else {
+                                    client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §c没有可恢复的自动飞行"), false);
+                                }
+                            }
+                            return Command.SINGLE_SUCCESS;
+                        })
+                )
+                .then(literal("stop")
+                        .executes(context -> {
+                            MinecraftClient client = MinecraftClient.getInstance();
+                            if (client.player != null) {
+                                if (FlightControl.enabled || isPaused) {
+                                    resetAllStates();
+                                    client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §6自动飞行已停止"), false);
+                                } else {
+                                    client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §c当前没有进行中的自动飞行"), false);
+                                }
+                            }
+                            return Command.SINGLE_SUCCESS;
+                        })
+                )
+                .then(argument("x", FloatArgumentType.floatArg())
+                        .then(argument("y", FloatArgumentType.floatArg())
+                                .then(argument("z", FloatArgumentType.floatArg())
+                                        .executes(context -> {
+                                            resetAllStates();
+                                            MinecraftClient client = MinecraftClient.getInstance();
+                                            if (client.player != null) {
+                                                float x = FloatArgumentType.getFloat(context, "x");
+                                                float y = FloatArgumentType.getFloat(context, "y");
+                                                float z = FloatArgumentType.getFloat(context, "z");
+
+                                                if (y < -64 || y > 1280) {
+                                                    client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §cY坐标 §f" + y + " §c超出了有效范围 (-64 ~ 1279)"), false);
+                                                    return Command.SINGLE_SUCCESS;
+                                                }
+
+                                                destination = new Vec3d(x, y, z);
+                                                startTime = Instant.now();
+                                                playerName = client.player.getName().getString();
+                                                startPos = client.player.getEntityPos();
+
+                                                FlightControl.enabled = true;
+
+                                                client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a开始自动飞行至 §b" + x + ", " + y + ", " + z + ""), false);
+                                            }
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                        .then(argument("range", FloatArgumentType.floatArg())
+                                                .executes(context -> {
+                                                    resetAllStates();
+                                                    MinecraftClient client = MinecraftClient.getInstance();
+                                                    if (client.player != null) {
+                                                        float x = FloatArgumentType.getFloat(context, "x");
+                                                        float y = FloatArgumentType.getFloat(context, "y");
+                                                        float z = FloatArgumentType.getFloat(context, "z");
+                                                        float range = FloatArgumentType.getFloat(context, "range");
+
+                                                        if (y < -64 || y > 1280) {
+                                                            client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §cY坐标 §f" + y + " §c超出了有效范围 (-64 ~ 1279)"), false);
+                                                            return Command.SINGLE_SUCCESS;
+                                                        }
+
+                                                        if (range < 1) {
+                                                            client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §crange不可以小于1"), false);
+                                                            return Command.SINGLE_SUCCESS;
+                                                        }
+
+                                                        destination = new Vec3d(x, y, z);
+                                                        startTime = Instant.now();
+                                                        playerName = client.player.getName().getString();
+                                                        startPos = client.player.getEntityPos();
+                                                        detectionRange = range;
+
+                                                        FlightControl.enabled = true;
+
+                                                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a开始自动飞行至 §b" + x + ", " + y + ", " + z + " §a, 检测范围为 §f" + range), false);
+                                                    }
+                                                    return Command.SINGLE_SUCCESS;
+                                                })
+                                                .then(literal("quit")
+                                                        .executes(context -> {
+                                                            resetAllStates();
+                                                            MinecraftClient client = MinecraftClient.getInstance();
+                                                            if (client.player != null) {
+                                                                float x = FloatArgumentType.getFloat(context, "x");
+                                                                float y = FloatArgumentType.getFloat(context, "y");
+                                                                float z = FloatArgumentType.getFloat(context, "z");
+                                                                float range = FloatArgumentType.getFloat(context, "range");
+
+                                                                if (y < -64 || y > 1280) {
+                                                                    client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §cY坐标 §f" + y + " §c超出了有效范围 (-64 ~ 1279)"), false);
+                                                                    return Command.SINGLE_SUCCESS;
+                                                                }
+
+                                                                if (range < 1) {
+                                                                    client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §crange不可以小于1"), false);
+                                                                    return Command.SINGLE_SUCCESS;
+                                                                }
+
+                                                                destination = new Vec3d(x, y, z);
+                                                                startTime = Instant.now();
+                                                                playerName = client.player.getName().getString();
+                                                                startPos = client.player.getEntityPos();
+                                                                detectionRange = range;
+                                                                autoExitEnabled = true;
+
+                                                                FlightControl.enabled = true;
+
+                                                                client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a开始自动飞行至 §b" + x + ", " + y + ", " + z + " §a, 检测范围为 §f" + range + "§a, 到达后将自动退出"), false);
+                                                            }
+                                                            return Command.SINGLE_SUCCESS;
+                                                        })
+                                                )
+                                        )
+                                        .then(literal("quit")
+                                                .executes(context -> {
+                                                    resetAllStates();
+                                                    MinecraftClient client = MinecraftClient.getInstance();
+                                                    if (client.player != null) {
+                                                        float x = FloatArgumentType.getFloat(context, "x");
+                                                        float y = FloatArgumentType.getFloat(context, "y");
+                                                        float z = FloatArgumentType.getFloat(context, "z");
+
+                                                        destination = new Vec3d(x, y, z);
+                                                        startTime = Instant.now();
+                                                        playerName = client.player.getName().getString();
+                                                        startPos = client.player.getEntityPos();
+                                                        autoExitEnabled = true;
+
+                                                        FlightControl.enabled = true;
+
+                                                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a开始自动飞行至 §b" + x + ", " + y + ", " + z + " §a, 到达后将自动退出"), false);
+                                                    }
+                                                    return Command.SINGLE_SUCCESS;
+                                                })
+                                        )
+                                )
+                        )
+                        .then(literal("~")
+                                .then(argument("z", FloatArgumentType.floatArg())
+                                        .executes(context -> {
+                                            resetAllStates();
+                                            MinecraftClient client = MinecraftClient.getInstance();
+                                            if (client.player != null) {
+                                                float x = FloatArgumentType.getFloat(context, "x");
+                                                float y = (float) Math.round(client.player.getY());
+                                                float z = FloatArgumentType.getFloat(context, "z");
+
+                                                destination = new Vec3d(x, y, z);
+                                                startTime = Instant.now();
+                                                playerName = client.player.getName().getString();
+                                                startPos = client.player.getEntityPos();
+
+                                                FlightControl.enabled = true;
+
+                                                client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a开始自动飞行至 §b" + x + ", " + y + ", " + z + ""), false);
+                                            }
+                                            return Command.SINGLE_SUCCESS;
+                                        })
+                                        .then(argument("range", FloatArgumentType.floatArg())
+                                                .executes(context -> {
+                                                    resetAllStates();
+                                                    MinecraftClient client = MinecraftClient.getInstance();
+                                                    if (client.player != null) {
+                                                        float x = FloatArgumentType.getFloat(context, "x");
+                                                        float y = (float) Math.round(client.player.getY());
+                                                        float z = FloatArgumentType.getFloat(context, "z");
+                                                        float range = FloatArgumentType.getFloat(context, "range");
+
+                                                        if (range < 1) {
+                                                            client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §crange不可以小于1"), false);
+                                                            return Command.SINGLE_SUCCESS;
+                                                        }
+
+                                                        destination = new Vec3d(x, y, z);
+                                                        startTime = Instant.now();
+                                                        playerName = client.player.getName().getString();
+                                                        startPos = client.player.getEntityPos();
+                                                        detectionRange = range;
+
+                                                        FlightControl.enabled = true;
+
+                                                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a开始自动飞行至 §b" + x + ", " + y + ", " + z + " §a, 检测范围为 §f" + range), false);
+                                                    }
+                                                    return Command.SINGLE_SUCCESS;
+                                                })
+                                                .then(literal("quit")
+                                                        .executes(context -> {
+                                                            resetAllStates();
+                                                            MinecraftClient client = MinecraftClient.getInstance();
+                                                            if (client.player != null) {
+                                                                float x = FloatArgumentType.getFloat(context, "x");
+                                                                float y = (float) Math.round(client.player.getY());
+                                                                float z = FloatArgumentType.getFloat(context, "z");
+                                                                float range = FloatArgumentType.getFloat(context, "range");
+
+                                                                if (range < 1) {
+                                                                    client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §crange不可以小于1"), false);
+                                                                    return Command.SINGLE_SUCCESS;
+                                                                }
+
+                                                                destination = new Vec3d(x, y, z);
+                                                                startTime = Instant.now();
+                                                                playerName = client.player.getName().getString();
+                                                                startPos = client.player.getEntityPos();
+                                                                detectionRange = range;
+                                                                autoExitEnabled = true;
+
+                                                                FlightControl.enabled = true;
+
+                                                                client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a开始自动飞行至 §b" + x + ", " + y + ", " + z + " §a, 检测范围为 §f" + range + "§a, 到达后将自动退出"), false);
+                                                            }
+                                                            return Command.SINGLE_SUCCESS;
+                                                        })
+                                                )
+                                        )
+                                        .then(literal("quit")
+                                                .executes(context -> {
+                                                    resetAllStates();
+                                                    MinecraftClient client = MinecraftClient.getInstance();
+                                                    if (client.player != null) {
+                                                        float x = FloatArgumentType.getFloat(context, "x");
+                                                        float y = (float) Math.round(client.player.getY());
+                                                        float z = FloatArgumentType.getFloat(context, "z");
+
+                                                        destination = new Vec3d(x, y, z);
+                                                        startTime = Instant.now();
+                                                        playerName = client.player.getName().getString();
+                                                        startPos = client.player.getEntityPos();
+                                                        autoExitEnabled = true;
+
+                                                        FlightControl.enabled = true;
+
+                                                        client.player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a开始自动飞行至 §b" + x + ", " + y + ", " + z + " §a, 到达后将自动退出"), false);
+                                                    }
+                                                    return Command.SINGLE_SUCCESS;
+                                                })
+                                        )
+                                )
+                        )
+                )
+        ));
+    }
+}
