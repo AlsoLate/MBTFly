@@ -12,14 +12,17 @@
 
 ## 当前升级状态
 
+> 1.21.1 → 1.21.11 升级已全部完成（2026-08-07），2026-08-08 完成编译修复与验证。
+
 | 项目 | 当前版本 | 目标版本 | 状态 |
 |------|---------|---------|------|
-| Minecraft | 1.21.1 | 1.21.11 | 待执行 |
-| Yarn Mappings | 1.21.1+build.3 | 1.21.11+build.6 | 待执行 |
-| Fabric Loader | 0.16.9 (gradle.properties 中) | 0.19.3 | 待执行 |
-| Fabric API | 0.105.0+1.21.11 (待验证) | 待确认 | 待验证 |
-| Fabric Loom | 1.10-SNAPSHOT | 待确认 | 待验证 |
-| Java | 21 | 21 | 无需变更 |
+| Minecraft | 1.21.11 | 1.21.11 | 已完成 |
+| Yarn Mappings | 1.21.11+build.6 | 1.21.11+build.6 | 已完成 |
+| Fabric Loader | 0.19.3 | 0.19.3 | 已完成 |
+| Fabric API | 0.141.6+1.21.11 | 0.141.6+1.21.11 | 已完成 |
+| Fabric Loom | 1.17-SNAPSHOT (实际 1.17.19) | 1.17-SNAPSHOT | 已完成 |
+| Gradle | 9.6.1 (wrapper) | 9.6.1 | 已完成 |
+| Java | 21 (Zulu 21.0.10) | 21 | 已完成 |
 
 ## 标准文件路径
 
@@ -85,10 +88,16 @@
 4. **文档同步**: 代码变更与文档更新同步进行
 5. **变更解释**: 每处关键修改须说明原因（API 变更、弃用、行为改变等）
 
-## 已知问题（升级前须解决）
+## 历史问题（升级期间已全部解决）
 
-1. **映射不一致**: `build.gradle` 使用 `intermediary` 映射，但代码使用 Yarn 命名（如 `ClientPlayerEntity`、`MinecraftClient` 等），须改回 Yarn 映射
-2. **Fabric API 版本待验证**: `gradle.properties` 中 `fabric_version=0.105.0+1.21.11` 版本号可能不正确，须通过构建验证
-3. **Loader 版本过旧**: `gradle.properties` 中 `loader_version=0.16.9` 远低于 1.21.11 对应的最新稳定版 `0.19.3`
-4. **Yarn 版本可更新**: `gradle.properties` 中 `yarn_mappings=1.21.11+build.2` 可更新至最新稳定版 `1.21.11+build.6`
-5. **Java 路径硬编码**: `gradle.properties` 中 Java 路径硬编码为特定机器路径，可能影响跨环境构建
+1. **映射不一致**（已解决）: `build.gradle` 曾使用 `intermediary` 映射，已改回 Yarn 映射
+2. **Fabric API 版本**（已解决）: 经 Maven 仓库验证，最终确认 `0.141.6+1.21.11`
+3. **Loader 版本过旧**（已解决）: 已升级至 `0.19.3`
+4. **Yarn 版本可更新**（已解决）: 已更新至 `1.21.11+build.6`
+5. **Java 路径硬编码**（已解决）: 2026-08-08 修正为 `C:/Program Files/Zulu/zulu-21`（原 Eclipse Adoptium 路径在本机不存在）
+
+## 当前注意事项（2026-08-08 编译修复）
+
+1. **不启用 `splitEnvironmentSourceSets()`**: 项目源码全部位于 `src/main/java` 且均为客户端代码，移除该配置后 `main` source set 才能引用 `net.minecraft.client.*` 与 Fabric client API
+2. **Yarn 1.21.2+ API 变更**: `getPos()` → `getEntityPos()`、`getWorld()` → `getEntityWorld()`、`Identifier` 构造函数为 private（须用 `Identifier.of()`）、`disconnect()` 需要 `Text` 参数
+3. **Gradle 9.6.1**: 本地缓存完整；Gradle 9.5 发行版下载 404 且缓存不完整，勿回退

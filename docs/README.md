@@ -6,10 +6,10 @@
 
 | 文档 | 说明 | 状态 |
 |------|------|------|
-| [upgrade-requirements.md](./upgrade-requirements.md) | 升级需求文档：需求分析、版本对照、变更范围 | 已创建 |
-| [technical-specs.md](./technical-specs.md) | 技术规范文档：技术栈、依赖版本、代码架构、API 用法 | 已创建 |
-| [design-standards.md](./design-standards.md) | 设计规范文档：代码风格、命名规范、提交规范 | 已创建 |
-| [execution-plan.md](./execution-plan.md) | 执行步骤文档：分阶段升级计划、风险评估、回滚策略 | 已创建 |
+| [upgrade-requirements.md](./upgrade-requirements.md) | 升级需求文档：需求分析、版本对照、变更范围 | 已完成 |
+| [technical-specs.md](./technical-specs.md) | 技术规范文档：技术栈、依赖版本、代码架构、API 用法 | 已完成 |
+| [design-standards.md](./design-standards.md) | 设计规范文档：代码风格、命名规范、提交规范 | 已完成 |
+| [execution-plan.md](./execution-plan.md) | 执行步骤文档：分阶段升级计划、风险评估、回滚策略 | 已完成 |
 
 ## 文档维护规则
 

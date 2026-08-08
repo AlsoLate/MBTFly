@@ -157,3 +157,31 @@
 1. 使用 Git 恢复到升级前的 commit
 2. 重新分析失败原因
 3. 调整方案后重新执行
+
+---
+
+## 后续修复记录（2026-08-08）
+
+> 升级完成后执行编译验证时发现的额外问题及修复。
+
+| 文件 | 变更 | 原因 |
+|------|------|------|
+| `gradle.properties` | Java 路径 → `C:/Program Files/Zulu/zulu-21` | 原 Eclipse Adoptium 路径在本机不存在 |
+| `gradle-wrapper.properties` | Gradle 9.5 → 9.6.1 | 9.5 发行版下载 404 且缓存不完整，9.6.1 本地缓存完整 |
+| `build.gradle` | 移除 `loom { splitEnvironmentSourceSets() }` | 纯客户端项目，main source set 需直接包含 Minecraft 客户端类 |
+| `ClientPlayerEntityMixin.java` | `new Identifier(...)` → `Identifier.of(...)` | 1.21.11 中构造函数变 private |
+| `ClientPlayerEntityMixin.java` | `getWorld()` → `getEntityWorld()` (2处) | Yarn 1.21.2+ 方法重命名 |
+
+**验证结果**: `gradle build` BUILD SUCCESSFUL（37s），生成 `mbtfly-1.0.0.jar` (14,713 bytes) 等产物。
+
+**最终构建配置**:
+
+| 组件 | 版本 |
+|------|------|
+| Minecraft | 1.21.11 |
+| Yarn Mappings | 1.21.11+build.6 |
+| Fabric Loader | 0.19.3 |
+| Fabric API | 0.141.6+1.21.11 |
+| Fabric Loom | 1.17-SNAPSHOT (1.17.19) |
+| Gradle | 9.6.1 |
+| Java | 21 (Zulu 21.0.10) |
