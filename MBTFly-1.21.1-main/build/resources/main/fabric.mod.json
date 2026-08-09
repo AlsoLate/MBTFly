@@ -1,0 +1,36 @@
+{
+  "schemaVersion": 1,
+  "id": "mbtfly",
+  "version": "1.21.1",
+  "name": "MBTFly",
+  "description": "自动飞行模组 - 帮助玩家自动飞行到指定坐标",
+  "authors": [
+    "Maple_Bamboo_Team"
+  ],
+  "contact": {
+    "homepage": "https://github.com/your-repo/mbtfly",
+    "issues": "https://github.com/your-repo/mbtfly/issues"
+  },
+  "license": "LGPL-3.0",
+  "icon": "assets/mbtfly/icon.png",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "top.maple_bamboo_team.mbtfly.client.MBTFlyClient"
+    ]
+  },
+  "mixins": [
+    "mbtfly.mixins.json"
+  ],
+  "depends": {
+    "fabricloader": ">=0.19.2",
+    "fabric-api": ">=0.116.11+1.21.1",
+    "minecraft": "1.21.1"
+  },
+  "recommends": {
+    "fabric-api": ">=0.100.8+1.21"
+  },
+  "custom": {
+    "fabric-api:module-lifecycle": "client"
+  }
+}
