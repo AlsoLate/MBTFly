@@ -5,6 +5,10 @@ import net.minecraft.client.MinecraftClient;
 import net.minecraft.client.network.ClientPlayerEntity;
 import net.minecraft.text.Text;
 import net.minecraft.util.math.Vec3d;
+import net.minecraft.world.World;
+import net.minecraft.entity.EquipmentSlot;
+import net.minecraft.item.Items;
+import net.minecraft.item.ItemStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.Unique;
 import org.spongepowered.asm.mixin.injection.At;
@@ -30,6 +34,57 @@ public class ClientPlayerEntityMixin {
     private static final Text PREFIX = Text.literal("[Maple Client] [MBTFly] ");
     @Unique
     private int autoExitCountdown = 0;
+    @Unique
+    private boolean elytraLowDurabilityWarning = false;
+
+    @Unique
+    private boolean isElytraLowDurability(ClientPlayerEntity player) {
+        ItemStack chestplate = player.getEquippedStack(EquipmentSlot.CHEST);
+        if (chestplate.getItem() == Items.ELYTRA) {
+            int durability = chestplate.getDamage();
+            int maxDurability = chestplate.getMaxDamage();
+            return durability >= maxDurability * 0.93; // 耐久不足7%
+        }
+        return false;
+    }
+
+    @Unique
+    private Vec3d findNearestLandingSpot(ClientPlayerEntity player) {
+        Vec3d playerPos = player.getEntityPos();
+        World world = player.getEntityWorld();
+        
+        // 搜索半径
+        int searchRadius = 100;
+        int bestY = -1;
+        Vec3d bestPos = null;
+        double minDistance = Double.MAX_VALUE;
+        
+        // 在XZ平面上搜索
+        for (int x = (int)(playerPos.x - searchRadius); x <= (int)(playerPos.x + searchRadius); x += 10) {
+            for (int z = (int)(playerPos.z - searchRadius); z <= (int)(playerPos.z + searchRadius); z += 10) {
+                // 从当前高度向下搜索地面
+                for (int y = (int)playerPos.y; y >= 0; y--) {
+                    if (!world.isAir(new net.minecraft.util.math.BlockPos(x, y, z))) {
+                        // 找到地面，检查是否是安全的着陆点
+                        if (y > 0 && world.isAir(new net.minecraft.util.math.BlockPos(x, y + 1, z))) {
+                            Vec3d landingPos = new Vec3d(x, y + 1, z);
+                            double distance = playerPos.distanceTo(landingPos);
+                            
+                            // 选择最近的陆地
+                            if (distance < minDistance) {
+                                minDistance = distance;
+                                bestPos = landingPos;
+                                bestY = y;
+                            }
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+        
+        return bestPos;
+    }
 
     @Inject(method = "tick", at = @At("HEAD"))
     private void onTick(CallbackInfo ci) {
@@ -38,6 +93,31 @@ public class ClientPlayerEntityMixin {
 
         if (client == null || client.world == null || player == null) {
             return;
+        }
+
+        // 检查是否在末地
+        boolean isInEnd = player.getEntityWorld().getRegistryKey().getValue().equals(net.minecraft.util.Identifier.of("minecraft", "the_end"));
+        
+        // 如果在末地且正在飞行，检查鞘翅耐久
+        if (isInEnd && FlightControl.enabled && isElytraLowDurability(player)) {
+            if (!elytraLowDurabilityWarning) {
+                player.sendMessage(Text.literal("[Maple Client] [MBTFly] §c警告: 鞘翅耐久不足7%，正在寻找最近的着陆点..."), false);
+                elytraLowDurabilityWarning = true;
+            }
+            
+            // 寻找最近的着陆点
+            Vec3d landingSpot = findNearestLandingSpot(player);
+            if (landingSpot != null) {
+                MBTFlyClient.destination = landingSpot;
+                player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a找到着陆点: §b" + 
+                    String.format("%.1f", landingSpot.x) + ", " + 
+                    String.format("%.1f", landingSpot.y) + ", " + 
+                    String.format("%.1f", landingSpot.z)), false);
+            } else {
+                player.sendMessage(Text.literal("[Maple Client] [MBTFly] §c未找到合适的着陆点，请手动降落"), false);
+            }
+        } else {
+            elytraLowDurabilityWarning = false;
         }
 
         if (FlightControl.enabled) {

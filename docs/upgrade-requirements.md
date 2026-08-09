@@ -1,17 +1,20 @@
 # MBTFly 升级需求文档
 
 > 从 Minecraft 1.21.1 升级至 1.21.11 的完整需求分析。
+>
+> **状态：升级已全部完成（2026-08-07 升级完成，2026-08-08 编译修复验证通过）**
 
 ## 1. 升级目标
 
-| 项目 | 当前版本 | 目标版本 | 数据来源 |
+| 项目 | 升级前版本 | 最终版本 | 数据来源/状态 |
 |------|---------|---------|---------|
-| Minecraft | 1.21.1 | 1.21.11 | 用户指定 |
-| Yarn Mappings | 1.21.1+build.3 | 1.21.11+build.6 | Fabric Meta API (最新稳定版) |
-| Fabric Loader | 0.16.9 | 0.19.3 | Fabric Meta API (1.21.11 最新稳定版) |
-| Fabric API | 待确认 | 待确认 | 须通过 Maven 仓库验证 |
-| Fabric Loom | 1.10-SNAPSHOT | 待确认 | 须通过 Gradle Plugin Portal 验证 |
-| Java | 21 | 21 | 无需变更 |
+| Minecraft | 1.21.1 | 1.21.11 | 用户指定 — 已完成 |
+| Yarn Mappings | 1.21.1+build.3 | 1.21.11+build.6 | Fabric Meta API — 已完成 |
+| Fabric Loader | 0.16.9 | 0.19.3 | Fabric Meta API — 已完成 |
+| Fabric API | 待确认 | 0.141.6+1.21.11 | Maven 仓库验证 — 已完成 |
+| Fabric Loom | 1.10-SNAPSHOT | 1.17-SNAPSHOT (实际 1.17.19) | Gradle Plugin Portal — 已完成 |
+| Gradle | 8.14.5 | 9.6.1 | Loom 1.17 要求 Gradle 9.5+ — 已完成 |
+| Java | 21 | 21 (Zulu 21.0.10) | 无需变更 — 已完成 |
 
 ## 2. 当前项目状态分析
 
@@ -65,9 +68,9 @@
 - 每处修改须记录：原代码 → 新代码 → 变更原因
 - 标注变更类型：API 重命名、方法移除、行为变更、弃用替换
 
-## 4. 待确认事项
+## 4. 待确认事项（均已确认）
 
-1. **Fabric API 版本**: 须确认 1.21.11 对应的 Fabric API 正确版本号
-2. **Fabric Loom 版本**: 须确认支持 1.21.11 的最新 Loom 版本
-3. **映射选择**: 确认使用 Yarn 映射（而非 intermediary），因为代码使用 Yarn 命名
-4. **Java 路径**: 确认 `org.gradle.java.home` 路径在本机有效
+1. **Fabric API 版本**: ✅ 已确认 — `0.141.6+1.21.11`（Fabric Maven 仓库验证，构建解析成功）
+2. **Fabric Loom 版本**: ✅ 已确认 — `1.17-SNAPSHOT`（实际解析 `1.17.19`），要求 Gradle 9.5+
+3. **映射选择**: ✅ 已确认 — 使用 Yarn 映射（代码使用 Yarn 命名），不使用 `splitEnvironmentSourceSets()`（纯客户端项目，main source set 直接包含客户端类）
+4. **Java 路径**: ✅ 已确认 — `C:/Program Files/Zulu/zulu-21`（本机实际安装的 Zulu JDK 21.0.10）

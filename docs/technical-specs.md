@@ -6,12 +6,13 @@
 
 | 技术 | 版本 | 说明 |
 |------|------|------|
-| Java | 21 (LTS) | 使用 Eclipse Adoptium (Temurin) 发行版 |
-| Gradle | 通过 Loom 管理 | 使用 Fabric Loom Gradle 插件 |
-| Minecraft | 1.21.11 (目标) | Fabric 平台 |
-| Fabric Loader | 0.19.3 (目标) | 模组加载器 |
-| Fabric API | 待确认 | Fabric 官方 API 库 |
-| Yarn Mappings | 1.21.11+build.6 (目标) | Minecraft 反混淆映射 |
+| Java | 21 (LTS) | 使用 Zulu JDK 21.0.10 发行版 |
+| Gradle | 9.6.1 | 由 Gradle Wrapper 管理 |
+| Minecraft | 1.21.11 | Fabric 平台 |
+| Fabric Loader | 0.19.3 | 模组加载器 |
+| Fabric API | 0.141.6+1.21.11 | Fabric 官方 API 库 |
+| Fabric Loom | 1.17-SNAPSHOT (实际 1.17.19) | 构建插件 |
+| Yarn Mappings | 1.21.11+build.6 | Minecraft 反混淆映射 |
 | Mixin | 通过 Fabric Loader 提供 | 字节码注入框架 |
 
 ## 2. 项目架构
@@ -88,4 +89,4 @@ top.maple_bamboo_team.mbtfly/
 - `processResources` 中 `filteringCharset = "UTF-8"`
 
 ### 5.3 资源处理
-- `fabric.mod.json` 中的 `${version}`、`${minecraft_version}`、`${loader_version}` 在构建时替换
+- `fabric.mod.json` 中的 `${version}` 在构建时替换（`processResources` 仅替换 version 占位符）
