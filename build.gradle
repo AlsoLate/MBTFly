@@ -1,4 +1,5 @@
 plugins {
+    id 'net.fabricmc.fabric-loom-remap' version '1.17.19'
     id 'net.fabricmc.fabric-loom-remap' version '1.17-SNAPSHOT'
     id 'maven-publish'
     id 'java'
@@ -67,4 +68,9 @@ publishing {
             url = "file://${project.projectDir}/mcmodsrepo"
         }
     }
+}
+
+// 禁用 Javadoc 生成以避免中文注释问题
+tasks.withType(Javadoc) {
+    enabled = false
 }
