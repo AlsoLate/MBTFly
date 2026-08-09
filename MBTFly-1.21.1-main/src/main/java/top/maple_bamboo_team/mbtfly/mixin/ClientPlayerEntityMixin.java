@@ -36,6 +36,18 @@ public class ClientPlayerEntityMixin {
     private int autoExitCountdown = 0;
     @Unique
     private boolean elytraLowDurabilityWarning = false;
+    
+    // 新增：落地检测相关变量
+    @Unique
+    private boolean isOnGround = false;
+    @Unique
+    private Instant landTime = null;
+    @Unique
+    private boolean wasInAir = true;
+    @Unique
+    private int autoExitCountdownAfterLanding = 0;
+    @Unique
+    private static final long FIVE_MINUTES_IN_TICKS = 20L * 60L * 5L; // 5分钟 = 6000 ticks
 
     @Unique
     private boolean isElytraLowDurability(ClientPlayerEntity player) {
@@ -120,6 +132,56 @@ public class ClientPlayerEntityMixin {
             elytraLowDurabilityWarning = false;
         }
 
+        // 新增：落地检测和自动退出逻辑
+        boolean currentlyOnGround = player.isOnGround();
+        
+        // 检测落地状态变化
+        if (currentlyOnGround && !wasInAir) {
+            // 刚落地
+            if (!isOnGround) {
+                isOnGround = true;
+                landTime = Instant.now();
+                autoExitCountdownAfterLanding = (int) FIVE_MINUTES_IN_TICKS; // 5分钟倒计时
+                player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a已落地，5分钟后将自动退出游戏"), false);
+                player.sendMessage(Text.literal("[Maple Client] [MBTFly] §7请在5分钟内完成操作，否则将自动退出"), false);
+            }
+        } else if (!currentlyOnGround) {
+            // 在空中
+            isOnGround = false;
+            landTime = null;
+            autoExitCountdownAfterLanding = 0;
+        }
+        
+        wasInAir = !currentlyOnGround;
+        
+        // 处理落地后自动退出倒计时
+        if (isOnGround && autoExitCountdownAfterLanding > 0) {
+            autoExitCountdownAfterLanding--;
+            
+            if (autoExitCountdownAfterLanding % 3000 == 0) { // 每2.5分钟（3000 ticks）提示一次
+                long remainingSeconds = autoExitCountdownAfterLanding / 20;
+                player.sendMessage(Text.literal("[Maple Client] [MBTFly] §6将在 §f" + (remainingSeconds / 60) + "分" + (remainingSeconds % 60) + "秒 §6后自动退出游戏"), false);
+            }
+            
+            if (autoExitCountdownAfterLanding <= 0) {
+                player.sendMessage(Text.literal("[Maple Client] [MBTFly] §2已落地5分钟，正在自动退出游戏..."), false);
+                new Thread(() -> {
+                    try {
+                        Thread.sleep(1000);
+                    } catch (InterruptedException e) {
+                        e.printStackTrace();
+                    }
+                    client.execute(() -> {
+                        if (client.world != null) {
+                            client.world.disconnect();
+                            client.setScreen(new TitleScreen());
+                        }
+                    });
+                }).start();
+                autoExitCountdownAfterLanding = -1; // 防止重复执行
+            }
+        }
+
         if (FlightControl.enabled) {
             client.options.forwardKey.setPressed(false);
             client.options.leftKey.setPressed(false);
@@ -145,8 +207,6 @@ public class ClientPlayerEntityMixin {
                     client.execute(() -> {
                         if (client.world != null) {
                             client.world.disconnect();
-                            // 移除这行，因为 client.disconnect() 不接受 Text 参数
-                            // client.disconnect(Text.literal("MBTFly: 到达目的地,自动退出"));
                             client.setScreen(new TitleScreen());
                         }
                     });
