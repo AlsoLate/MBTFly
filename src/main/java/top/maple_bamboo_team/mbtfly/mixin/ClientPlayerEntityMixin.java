@@ -16,12 +16,15 @@ import org.spongepowered.asm.mixin.injection.Inject;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import top.maple_bamboo_team.mbtfly.client.MBTFlyClient;
 import top.maple_bamboo_team.mbtfly.client.flight.FlightControl;
+
 import java.time.Instant;
 import java.time.Duration;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Locale;
+
 import net.minecraft.client.gui.screen.TitleScreen;
+import net.minecraft.util.Identifier;
 
 @Mixin(ClientPlayerEntity.class)
 public class ClientPlayerEntityMixin {
@@ -29,13 +32,22 @@ public class ClientPlayerEntityMixin {
     @Unique
     private static final double Y_TOLERANCE = 0.5;
     @Unique
-    private static final DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss", Locale.SIMPLIFIED_CHINESE).withZone(ZoneId.systemDefault());
+    private static final DateTimeFormatter formatter = DateTimeFormatter
+            .ofPattern("yyyy-MM-dd HH:mm:ss", Locale.SIMPLIFIED_CHINESE)
+            .withZone(ZoneId.systemDefault());
     @Unique
-    private static final Text PREFIX = Text.literal("[Maple Client] [MBTFly] ");
+    private static final long FIVE_MINUTES_IN_TICKS = 20L * 60L * 5L; // 6000 ticks
+
     @Unique
-    private int autoExitCountdown = 0;
+    private int autoExitCountdown = 0;               // 到达目的地后10秒退出倒计时
     @Unique
     private boolean elytraLowDurabilityWarning = false;
+
+    // 落地倒计时相关（使用上一帧地面状态）
+    @Unique
+    private boolean prevOnGround = true;             // 初始假设在地面，防止飞行启动时误触发
+    @Unique
+    private int landingCountdown = 0;                // 落地5分钟倒计时（tick数）
 
     @Unique
     private boolean isElytraLowDurability(ClientPlayerEntity player) {
@@ -43,38 +55,29 @@ public class ClientPlayerEntityMixin {
         if (chestplate.getItem() == Items.ELYTRA) {
             int durability = chestplate.getDamage();
             int maxDurability = chestplate.getMaxDamage();
-            return durability >= maxDurability * 0.93; // 耐久不足7%
+            return durability >= maxDurability * 0.95; // 耐久低于5%
         }
         return false;
     }
 
     @Unique
     private Vec3d findNearestLandingSpot(ClientPlayerEntity player) {
-        Vec3d playerPos = player.getEntityPos();
+        Vec3d playerPos = player.getPos();
         World world = player.getEntityWorld();
-        
-        // 搜索半径
         int searchRadius = 100;
-        int bestY = -1;
         Vec3d bestPos = null;
         double minDistance = Double.MAX_VALUE;
-        
-        // 在XZ平面上搜索
+
         for (int x = (int)(playerPos.x - searchRadius); x <= (int)(playerPos.x + searchRadius); x += 10) {
             for (int z = (int)(playerPos.z - searchRadius); z <= (int)(playerPos.z + searchRadius); z += 10) {
-                // 从当前高度向下搜索地面
                 for (int y = (int)playerPos.y; y >= 0; y--) {
                     if (!world.isAir(new net.minecraft.util.math.BlockPos(x, y, z))) {
-                        // 找到地面，检查是否是安全的着陆点
                         if (y > 0 && world.isAir(new net.minecraft.util.math.BlockPos(x, y + 1, z))) {
                             Vec3d landingPos = new Vec3d(x, y + 1, z);
                             double distance = playerPos.distanceTo(landingPos);
-                            
-                            // 选择最近的陆地
                             if (distance < minDistance) {
                                 minDistance = distance;
                                 bestPos = landingPos;
-                                bestY = y;
                             }
                         }
                         break;
@@ -82,7 +85,6 @@ public class ClientPlayerEntityMixin {
                 }
             }
         }
-        
         return bestPos;
     }
 
@@ -95,24 +97,22 @@ public class ClientPlayerEntityMixin {
             return;
         }
 
-        // 检查是否在末地
-        boolean isInEnd = player.getEntityWorld().getRegistryKey().getValue().equals(net.minecraft.util.Identifier.of("minecraft", "the_end"));
-        
-        // 如果在末地且正在飞行，检查鞘翅耐久
+        boolean isInEnd = player.getEntityWorld().getRegistryKey().getValue()
+                .equals(Identifier.of("minecraft", "the_end"));
+
+        // ========== 1. 鞘翅耐久低于5%强制降落 ==========
         if (isInEnd && FlightControl.enabled && isElytraLowDurability(player)) {
             if (!elytraLowDurabilityWarning) {
-                player.sendMessage(Text.literal("[Maple Client] [MBTFly] §c警告: 鞘翅耐久不足7%，正在寻找最近的着陆点..."), false);
+                player.sendMessage(Text.literal("[Maple Client] [MBTFly] §c警告: 鞘翅耐久不足5%，正在寻找最近的着陆点..."), false);
                 elytraLowDurabilityWarning = true;
             }
-            
-            // 寻找最近的着陆点
             Vec3d landingSpot = findNearestLandingSpot(player);
             if (landingSpot != null) {
                 MBTFlyClient.destination = landingSpot;
-                player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a找到着陆点: §b" + 
-                    String.format("%.1f", landingSpot.x) + ", " + 
-                    String.format("%.1f", landingSpot.y) + ", " + 
-                    String.format("%.1f", landingSpot.z)), false);
+                player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a找到着陆点: §b" +
+                        String.format("%.1f", landingSpot.x) + ", " +
+                        String.format("%.1f", landingSpot.y) + ", " +
+                        String.format("%.1f", landingSpot.z)), false);
             } else {
                 player.sendMessage(Text.literal("[Maple Client] [MBTFly] §c未找到合适的着陆点，请手动降落"), false);
             }
@@ -120,6 +120,56 @@ public class ClientPlayerEntityMixin {
             elytraLowDurabilityWarning = false;
         }
 
+        // ========== 2. 落地5分钟退出倒计时（仅飞行中且未暂停时触发） ==========
+        boolean currentlyOnGround = player.isOnGround();
+
+        // 2.1 落地事件（从空中 → 地面）
+        if (FlightControl.enabled && !MBTFlyClient.isPaused && currentlyOnGround && !prevOnGround) {
+            // 进入倒计时，重置为5分钟
+            landingCountdown = (int) FIVE_MINUTES_IN_TICKS;
+            player.sendMessage(Text.literal("[Maple Client] [MBTFly] §a已落地，5分钟后将自动退出游戏"), false);
+            player.sendMessage(Text.literal("[Maple Client] [MBTFly] §7请在5分钟内完成操作，否则将自动退出"), false);
+        }
+
+        // 2.2 离地事件（地面 → 空中）：取消倒计时
+        if (!currentlyOnGround && prevOnGround) {
+            landingCountdown = 0;
+        }
+
+        // 更新上一帧状态
+        prevOnGround = currentlyOnGround;
+
+        // 2.3 倒计时递减 / 暂停 / 停止处理
+        if (landingCountdown > 0) {
+            if (FlightControl.enabled && !MBTFlyClient.isPaused) {
+                // 飞行进行中且未暂停 → 递减
+                landingCountdown--;
+                if (landingCountdown % 3000 == 0) {
+                    long remainingSeconds = landingCountdown / 20;
+                    player.sendMessage(Text.literal("[Maple Client] [MBTFly] §6将在 §f" +
+                            (remainingSeconds / 60) + "分" + (remainingSeconds % 60) + "秒 §6后自动退出游戏"), false);
+                }
+                if (landingCountdown <= 0) {
+                    player.sendMessage(Text.literal("[Maple Client] [MBTFly] §2已落地5分钟，正在自动退出游戏..."), false);
+                    new Thread(() -> {
+                        try { Thread.sleep(1000); } catch (InterruptedException ignored) {}
+                        client.execute(() -> {
+                            if (client.world != null) {
+                                client.world.disconnect();
+                                client.setScreen(new TitleScreen());
+                            }
+                        });
+                    }).start();
+                    landingCountdown = -1; // 防重复触发
+                }
+            } else if (!FlightControl.enabled && !MBTFlyClient.isPaused) {
+                // 飞行已完全停止 → 清零倒计时
+                landingCountdown = 0;
+            }
+            // 暂停状态（enabled=true, isPaused=true）→ 不递减也不清零，保留剩余时间
+        }
+
+        // ========== 3. 飞行控制：释放所有按键 ==========
         if (FlightControl.enabled) {
             client.options.forwardKey.setPressed(false);
             client.options.leftKey.setPressed(false);
@@ -129,6 +179,7 @@ public class ClientPlayerEntityMixin {
             client.options.sneakKey.setPressed(false);
         }
 
+        // ========== 4. 到达目的地10秒退出倒计时 ==========
         if (autoExitCountdown > 0) {
             autoExitCountdown--;
             if (autoExitCountdown % 20 == 0) {
@@ -137,51 +188,50 @@ public class ClientPlayerEntityMixin {
             if (autoExitCountdown <= 0) {
                 player.sendMessage(Text.literal("[Maple Client] [MBTFly] §6正在退出"), false);
                 new Thread(() -> {
-                    try {
-                        Thread.sleep(800);
-                    } catch (InterruptedException e) {
-                        e.printStackTrace();
-                    }
+                    try { Thread.sleep(800); } catch (InterruptedException ignored) {}
                     client.execute(() -> {
                         if (client.world != null) {
-                            client.world.disconnect(Text.literal("MBTFly: 到达目的地,自动退出"));
-                            client.disconnect(Text.literal("MBTFly: 到达目的地,自动退出"));
+                            client.world.disconnect();
                             client.setScreen(new TitleScreen());
                         }
                     });
                 }).start();
                 autoExitCountdown = -1;
             }
-            return;
+            return; // 退出倒计时期间不执行飞行逻辑
         }
 
+        // ========== 5. 自动飞行主逻辑 ==========
         if (FlightControl.enabled && MBTFlyClient.destination != null) {
-            Vec3d playerPos = player.getEntityPos();
-
+            Vec3d playerPos = player.getPos();
             Vec3d flatPlayerPos = new Vec3d(playerPos.x, MBTFlyClient.destination.y, playerPos.z);
             double flatDistance = flatPlayerPos.distanceTo(MBTFlyClient.destination);
-
             double totalDistance = playerPos.distanceTo(MBTFlyClient.destination);
 
-            boolean ascentIssue = flatDistance <= MBTFlyClient.detectionRange && playerPos.y < MBTFlyClient.destination.y - Y_TOLERANCE;
+            boolean ascentIssue = flatDistance <= MBTFlyClient.detectionRange &&
+                    playerPos.y < MBTFlyClient.destination.y - Y_TOLERANCE;
             boolean reachedDestination = totalDistance <= MBTFlyClient.detectionRange;
 
             if (ascentIssue || reachedDestination) {
                 FlightControl.enabled = false;
+                // 飞行停止 → 清除落地倒计时（若存在）
+                landingCountdown = 0;
+                prevOnGround = player.isOnGround(); // 重置状态，避免后续误触
 
                 client.options.forwardKey.setPressed(false);
                 client.options.jumpKey.setPressed(false);
                 client.options.sneakKey.setPressed(false);
 
                 Instant endTime = Instant.now();
-                Duration flightDuration = Duration.between(MBTFlyClient.startTime, endTime).minus(MBTFlyClient.pausedDuration);
+                Duration flightDuration = Duration.between(MBTFlyClient.startTime, endTime)
+                        .minus(MBTFlyClient.pausedDuration);
                 double originalTotalDistance = MBTFlyClient.startPos.distanceTo(MBTFlyClient.destination);
 
                 long totalSeconds = flightDuration.getSeconds();
                 long days = totalSeconds / (24 * 3600);
                 long hours = (totalSeconds % (24 * 3600)) / 3600;
                 long minutes = (totalSeconds % 3600) / 60;
-                long seconds = totalSeconds % 60;
+                long seconds = totalSeconds % 60; // 修正：之前误写为 % 3600
 
                 StringBuilder timeString = new StringBuilder();
                 if (days > 0) timeString.append(days).append("天");
@@ -209,6 +259,7 @@ public class ClientPlayerEntityMixin {
                     player.sendMessage(Text.literal("[Maple Client] [MBTFly] §6已到达目的地, 10秒后自动退出游戏"), false);
                 }
             } else if (flatDistance <= MBTFlyClient.detectionRange) {
+                // 水平已到达，仅调整垂直
                 client.options.forwardKey.setPressed(false);
                 client.options.leftKey.setPressed(false);
                 client.options.rightKey.setPressed(false);
@@ -225,22 +276,17 @@ public class ClientPlayerEntityMixin {
                     client.options.sneakKey.setPressed(false);
                 }
             } else {
+                // 水平未到达，转向并前进
                 double yaw = AimingUtils.getYaw(playerPos, MBTFlyClient.destination);
                 double pitch = AimingUtils.getPitch(playerPos, MBTFlyClient.destination);
                 double yawDiff = yaw - player.getYaw();
                 double pitchDiff = pitch - player.getPitch();
 
-                if (yawDiff > 180) {
-                    yawDiff -= 360;
-                } else if (yawDiff < -180) {
-                    yawDiff += 360;
-                }
+                if (yawDiff > 180) yawDiff -= 360;
+                else if (yawDiff < -180) yawDiff += 360;
 
-                float newYaw = (float) (player.getYaw() + yawDiff);
-                float newPitch = (float) (player.getPitch() + pitchDiff);
-
-                player.setYaw(newYaw);
-                player.setPitch(newPitch);
+                player.setYaw((float)(player.getYaw() + yawDiff));
+                player.setPitch((float)(player.getPitch() + pitchDiff));
 
                 client.options.forwardKey.setPressed(true);
 
