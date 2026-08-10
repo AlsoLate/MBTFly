@@ -68,3 +68,8 @@ publishing {
         }
     }
 }
+
+// 禁用 Javadoc 生成以避免中文注释问题
+tasks.withType(Javadoc) {
+    enabled = false
+}

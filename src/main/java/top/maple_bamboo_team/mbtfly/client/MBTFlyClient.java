@@ -130,7 +130,7 @@ public class MBTFlyClient implements ClientModInitializer {
                                                 destination = new Vec3d(x, y, z);
                                                 startTime = Instant.now();
                                                 playerName = client.player.getName().getString();
-                                                startPos = client.player.getEntityPos();
+                                                startPos = new Vec3d(client.player.getX(), client.player.getY(), client.player.getZ());
 
                                                 FlightControl.enabled = true;
 
@@ -161,7 +161,7 @@ public class MBTFlyClient implements ClientModInitializer {
                                                         destination = new Vec3d(x, y, z);
                                                         startTime = Instant.now();
                                                         playerName = client.player.getName().getString();
-                                                        startPos = client.player.getEntityPos();
+                                                        startPos = new Vec3d(client.player.getX(), client.player.getY(), client.player.getZ());
                                                         detectionRange = range;
 
                                                         FlightControl.enabled = true;
@@ -193,7 +193,7 @@ public class MBTFlyClient implements ClientModInitializer {
                                                                 destination = new Vec3d(x, y, z);
                                                                 startTime = Instant.now();
                                                                 playerName = client.player.getName().getString();
-                                                                startPos = client.player.getEntityPos();
+                                                                startPos = new Vec3d(client.player.getX(), client.player.getY(), client.player.getZ());
                                                                 detectionRange = range;
                                                                 autoExitEnabled = true;
 
@@ -217,7 +217,7 @@ public class MBTFlyClient implements ClientModInitializer {
                                                         destination = new Vec3d(x, y, z);
                                                         startTime = Instant.now();
                                                         playerName = client.player.getName().getString();
-                                                        startPos = client.player.getEntityPos();
+                                                        startPos = new Vec3d(client.player.getX(), client.player.getY(), client.player.getZ());
                                                         autoExitEnabled = true;
 
                                                         FlightControl.enabled = true;
@@ -242,7 +242,7 @@ public class MBTFlyClient implements ClientModInitializer {
                                                 destination = new Vec3d(x, y, z);
                                                 startTime = Instant.now();
                                                 playerName = client.player.getName().getString();
-                                                startPos = client.player.getEntityPos();
+                                                startPos = new Vec3d(client.player.getX(), client.player.getY(), client.player.getZ());
 
                                                 FlightControl.enabled = true;
 
@@ -268,7 +268,7 @@ public class MBTFlyClient implements ClientModInitializer {
                                                         destination = new Vec3d(x, y, z);
                                                         startTime = Instant.now();
                                                         playerName = client.player.getName().getString();
-                                                        startPos = client.player.getEntityPos();
+                                                        startPos = new Vec3d(client.player.getX(), client.player.getY(), client.player.getZ());
                                                         detectionRange = range;
 
                                                         FlightControl.enabled = true;
@@ -295,7 +295,7 @@ public class MBTFlyClient implements ClientModInitializer {
                                                                 destination = new Vec3d(x, y, z);
                                                                 startTime = Instant.now();
                                                                 playerName = client.player.getName().getString();
-                                                                startPos = client.player.getEntityPos();
+                                                                startPos = new Vec3d(client.player.getX(), client.player.getY(), client.player.getZ());
                                                                 detectionRange = range;
                                                                 autoExitEnabled = true;
 
@@ -319,7 +319,7 @@ public class MBTFlyClient implements ClientModInitializer {
                                                         destination = new Vec3d(x, y, z);
                                                         startTime = Instant.now();
                                                         playerName = client.player.getName().getString();
-                                                        startPos = client.player.getEntityPos();
+                                                        startPos = new Vec3d(client.player.getX(), client.player.getY(), client.player.getZ());
                                                         autoExitEnabled = true;
 
                                                         FlightControl.enabled = true;
