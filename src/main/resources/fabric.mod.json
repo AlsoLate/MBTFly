@@ -23,7 +23,7 @@
     "mbtfly.mixins.json"
   ],
   "depends": {
-    "fabricloader": ">=0.19.2",
+    "fabricloader": ">=0.19.3",
     "fabric-api": ">=0.116.11+1.21.1",
     "minecraft": "1.21.1"
   },
